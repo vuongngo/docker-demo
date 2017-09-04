@@ -1,0 +1,71 @@
+nsqlookupd:
+  image: nsqio/nsq
+  command: /nsqlookupd
+  ports:
+    - "4160"
+    - "4161"
+nsqd:
+  image: nsqio/nsq
+  links:
+    - nsqlookupd
+  command: /nsqd --lookupd-tcp-address=nsqlookupd:4160
+  ports:
+    - "4150"
+    - "4151"
+nsqadmin:
+  image: nsqio/nsq
+  links:
+    - nsqlookupd
+  command: /nsqadmin --lookupd-http-address=nsqlookupd:4161
+  ports:
+    - "4171"
+db:
+  image: mongo
+  ports:
+    - "27017:27017"
+backend:
+  build: ./backend
+  volumes:
+    - ./backend/src/app:/go/src/app
+  links:
+    - db
+    - nsqd
+  ports:
+    - "3003:4040"
+  environment:
+    - "MONGO_URI=mongodb://db:27017"
+    - "MONGO_DATABASE=dev"
+    - "NSQ_URI=nsqd:4150"
+    - "PORT=:4040"
+  extra_hosts:
+    - "localhost:4040"
+  command: ["realize", "run"]
+admin:
+  build: ./admin
+  volumes:
+    - ./admin:/app
+    - /app/node_modules/
+  links:
+  - db
+  ports:
+    - "3002:3000"
+  env_file:
+    - ./admin/s3.env
+  environment:
+    - "MONGO_URI=mongodb://db:27017/dev"
+    - "ADMIN=me@me.me"
+    - "PASS=whoknows"
+# frontend:
+#   build: ./frontend
+#   volumes:
+#     - ./frontend:/app
+#     - /app/node_modules/
+#   # image: frontend
+#   links:
+#   - backend
+#   ports:
+#     - "3000:3000"
+#     - "3001:3001"
+#   environment:
+#     - "API_URL=http://localhost:3000/api"
+#     - "APP_URL=http://localhost:3000"
